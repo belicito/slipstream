@@ -11,7 +11,7 @@ setuptools.setup(
     description='Slipstream',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/belicito/slipstream,
+    url='https://github.com/belicito/slipstream.git'
     project_urls = {
         "Bug Tracker": "https://github.com/belicito/slipstream/issues"
     },
