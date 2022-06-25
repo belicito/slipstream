@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='slipstream',
-    version='0.0.1',
+    version='0.0.2',
     author='Belicito',
     author_email='belicito@github.com',
     description='Slipstream',
