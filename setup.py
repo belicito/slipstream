@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='slipstream',
-    version='0.0.2',
+    version='0.0.3',
     author='Belicito',
     author_email='belicito@github.com',
     description='Slipstream',
@@ -16,6 +16,6 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/belicito/slipstream/issues"
     },
     license='MIT',
-    packages=['slipstream', 'slipstream.data', 'slipstream.sim'],
-    install_requires=['numpy', 'pandas', 'pytz'],
+    packages=['slipstream', 'slipstream.data', 'slipstream.trading'],
+    install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher'],
 )

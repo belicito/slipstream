@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Union, Callable, Tuple, NamedTuple
+from typing import Optional, Union, Callable, Tuple, NamedTuple, Set, List
 import math
 import pandas as pd
 from abc import ABC, abstractmethod
@@ -7,14 +8,15 @@ from .pricing import *
 
 
 class TradeType(Enum):
-    Unspecified = 0
     Long = 1
     Short = 2
-    Flat = 3
 
     @staticmethod
     def from_order_action(action: 'OrderAction') -> 'TradeType':
-        return TradeType.Long if action == OrderAction.Buy else TradeType.Short
+        return {OrderAction.Buy: TradeType.Long,
+                OrderAction.BuyToCover: TradeType.Long,
+                OrderAction.Sell: TradeType.Short,
+                OrderAction.SellShort: TradeType.Short}[action]
 
     @staticmethod
     def from_position(position: int) -> 'TradeType':
@@ -24,53 +26,76 @@ class TradeType(Enum):
 
 
 class Trade:
-    def __init__(self, trade_type: TradeType, size: int, entry_price: float):
+    def __init__(self, trade_type: TradeType, size: int, entry: PriceLike = None, exit: PriceLike = None, cost: PriceLike = 0.0, price_mult: float = 1.0):
         self.type = trade_type
         self.size = size
-        self.entry_price = entry_price
-        self.mtm_profit: float = 0
-        self.run_up: float = 0
-        self.draw_down: float = 0
+        self.entry = entry
+        self.exit = exit
+        self.cost = Price(cost)
+        self.price_mult = price_mult if price_mult is not None else 1.0
+        self.time_entered: pd.Timestamp = None
+        self.time_exited: pd.Timestamp = None
 
-    def assess(self, price_range: PriceRange):
-        assert not math.isnan(self.entry_price)
-        if self.type == TradeType.Long:
-            self.mtm_profit = price_range.hl2 - self.entry_price
-        else:
-            self.mtm_profit = self.entry_price - price_range.hl2
-        self.run_up = max(self.run_up, self.mtm_profit)
-        self.draw_down = min(self.draw_down, self.mtm_profit)
+    @property
+    def profit(self) -> Price:
+        mult = 1 if self.type == TradeType.Long else -1
+        profit_in_points = mult * self.size * (self.exit - self.entry)
+        return Price(profit_in_points * self.price_mult)
 
-    def add_execution(self, execution: 'OrderExecution') -> Optional['Trade']:
-        exec_trade_type = TradeType.from_order_action(execution.order.action)
-        if exec_trade_type == self.type:
-            trade_cost = self.size * self.entry_price
-            trade_cost += execution.size * execution.price
-            self.size += execution.size
-            self.entry_price = trade_cost / self.size
-            return None
-        else:
-            raise NotImplementedError
+    def __repr__(self):
+        return f"{self.profit} from {self.type} {self.size}"
+
+    # -------------- Logging --------------
+    def fields_to_log(self) -> List[str]:
+        return [
+            self.type.name,
+            str(self.size),
+            str(float(self.profit)),
+            str(float(self.entry)),
+            str(float(self.exit)),
+            str(float(self.cost)),
+            self.time_entered.isoformat(),
+            self.time_exited.isoformat()
+        ]
+
+    @classmethod
+    def field_names_to_log(cls) -> List[str]:
+        return [
+            "Type",
+            "Size",
+            "Profit",
+            "Entry",
+            "Exit",
+            "Cost",
+            "Entry Time",
+            "Exit Time"
+        ]
 
 
 class OrderType(Enum):
-    Unspecified = 0
     Market = 1
     Limit = 2
 
 
 class OrderAction(Enum):
-    Unspecified = 0
     Buy = 1
     Sell = 2
     SellShort = 3
+    BuyToCover = 4
+
+    def __neg__(self):
+        return {self.Buy: self.Sell,
+                self.Sell: self.Buy,
+                self.SellShort: self.BuyToCover,
+                self.BuyToCover: self.SellShort}[self]
 
 
 class Order(NamedTuple):
     action: OrderAction
     size: int
     type: OrderType = OrderType.Market
-    limit: float = None
+    limit: PriceLike = None
+    time_sent: pd.Timestamp = None
     on_execution: Optional[Callable[['OrderExecution'], None]] = None
 
     def can_be_fulfilled_with(self,
@@ -99,15 +124,47 @@ class OrderExecutionResult(Enum):
 
 
 class OrderExecution:
-    def __init__(self, order: Order, price: float, size: int = 0,
-                 result: OrderExecutionResult = OrderExecutionResult.Whole, is_real: bool = False):
+    def __init__(self, order: Order, price: PriceLike, size: int = 0, cost: PriceLike = 0.0,
+                 result: OrderExecutionResult = OrderExecutionResult.Whole):
         self.order = order
         self.price = price
         self.size = size
         self.result = result
         if self.size == 0 and self.result == OrderExecutionResult.Whole:
             self.size = self.order.size
-        self.is_real = is_real
+        self.cost = Price(cost)
+        self.time_received: pd.Timestamp = None
+        self.time_executed: pd.Timestamp = None
+
+    def partial_cost(self, size: int = None, ratio: float = None) -> Price:
+        if size is not None:
+            return self.cost * (size / self.size)
+        elif ratio is not None:
+            assert ratio <= 1.0, "'ratio' should be <= 1.0"
+            return self.cost * ratio
+        else:
+            raise ValueError("Must provide 'size' or 'ratio'")
+
+    def __repr__(self):
+        act = {OrderAction.Buy: "Bought",
+               OrderAction.Sell: "Sold",
+               OrderAction.SellShort: "Shorted",
+               OrderAction.BuyToCover: "Covered"}[self.order.action]
+        return f"{act} {self.size} at {self.price}"
+
+    @staticmethod
+    def execution_from(order: Order, price: PriceLike = None, size: int = None, cost: PriceLike = 0.0) -> 'OrderExecution':
+        size = size or order.size
+        price = Price(price) or Price(order.limit)
+        result = OrderExecutionResult.Whole if size == order.size else OrderExecutionResult.Partial
+        retval = OrderExecution(
+            order=order,
+            price=price,
+            cost=cost,
+            result=result
+        )
+
+
 
 
 TradePlan_HoldingPeriod = Union[int, pd.Timestamp, pd.Timedelta]
@@ -116,8 +173,8 @@ TradePlan_HoldingPeriod = Union[int, pd.Timestamp, pd.Timedelta]
 class TradePlan(NamedTuple):
     """ Describes a plan to enter and exit trade.
     """
-    type: TradeType = TradeType.Unspecified
-    size: int = 0
+    type: TradeType
+    size: int
     limit: Optional[float] = None
     target: Optional[float] = None
     stop: Optional[float] = None
@@ -125,16 +182,17 @@ class TradePlan(NamedTuple):
     hold_period: Optional[TradePlan_HoldingPeriod] = None
 
 
-class BookState(ABC):
-    @property
-    @abstractmethod
-    def repr_price(self) -> float:
-        raise NotImplementedError
+@dataclass
+class BookState:
+    bid: PriceLike
+    ask: PriceLike
+    last: PriceLike
+    last_vol: Optional[int] = None
 
 
 class BookStateObserver(ABC):
     @abstractmethod
-    def receive(self, book_state: BookState):
+    def observe_book_state(self, book_state: BookState) -> None:
         raise NotImplementedError
 
 
