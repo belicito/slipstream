@@ -2,7 +2,7 @@
 import pytest
 import pandas as pd
 from slipstream.trading import TradeType, OrderAction, Order, OrderType, OrderExecution, Price, PriceLike
-from slipstream.trading.positions import PositionTracker2 as PositionTracker
+from slipstream.trading.positions import PositionTracker
 
     
 class PositionTrackerUnderTest(PositionTracker):
