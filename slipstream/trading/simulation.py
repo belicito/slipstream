@@ -1,3 +1,5 @@
+from ..algos import *
+import os
 from .model import *
 # from .pricing import *
 from typing import List, Dict, Union, Any, Optional
@@ -14,25 +16,23 @@ class SimTrader:
     SyntheticDelay = pd.Timedelta("1ms")
     MinOrderFillDelay = pd.Timedelta("10s")
 
-    def __init__(self) -> None:
+    def __init__(self, results_dir: str = None) -> None:
         self._prev_time = None
         self._cur_time = None
         self._pending_orders: List[Order] = []
         self._tracker = PositionTracker(price_multiplier=50.0)
-        self.trades_path = f"/tmp/trades_{pydt.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+        self.results_dir = results_dir or "/tmp"
+        self.trades_path = os.path.join(
+            self.results_dir,
+            f"trades_{pydt.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        )
         self._tracker.start_recording_trades(
             path=self.trades_path
         )
-        print(f"Trades in {self.trades_path}")
-
-        self.last_low = np.nan
-        self.last_high = np.nan
 
         # Parameters for trading logics
         self.can_go_flat = False
-
-        # Randomization factor: "act on prediction"
-        self.act_on_pred = 1.
 
         # Forceful application of price slippage
         self.price_slip = 0.
@@ -51,22 +51,10 @@ class SimTrader:
         )
         return output
 
-    def eval(self, bar: pd.Series, prediction: np.array) -> None:
-        self.last_low, self.last_high = bar["Low"], bar["High"]
-        self._tracker.eval_market_prices(bar["Low"], bar["High"])
-        self.cur_time = bar["Timestamp"]
-        self._eval_orders(low=bar["Low"], high=bar["High"])
-        prediction = np.rint(prediction)
-        
-        if rrandom() > self.act_on_pred:
-            return
-
-        if self._is_up(prediction):
-            self._go_long()
-        elif self._is_down(prediction):
-            self._go_short()
-        elif self.can_go_flat:
-            self._go_flat()
+    def eval_market(self, time: pd.Timestamp, high: float, low: float) -> None:
+        self._tracker.eval_market_prices(low, high)
+        self.cur_time = time
+        self._eval_orders(low=low, high=high)
 
     @property
     def cur_time(self) -> pd.Timestamp:
@@ -107,6 +95,7 @@ class SimTrader:
             self._tracker.add_execution(execution)
             filled.append(order)
             self._exec_delays.append(execution.time_executed - execution.time_received)
+            self.on_order_filled(execution=execution)
             
         for order in filled:
             self._pending_orders.remove(order)
@@ -115,16 +104,19 @@ class SimTrader:
         assert order.time_sent is not None, "Order has no sent time"
         return self.cur_time - order.time_sent
 
-    def _is_up(self, prediction: np.array) -> bool:
-        return int(prediction[0]) == 1
+    def place_limit(self, action: OrderAction, limit: float, size: int = None) -> Order:
+        size = size or self.ContractCount
+        order = Order(
+            action=action,
+            size=size,
+            type=OrderType.Limit,
+            limit=limit,
+            time_sent=self.cur_time
+        )
+        self._pending_orders.append(order)
+        return order
 
-    def _is_down(self, prediction: np.array) -> bool:
-        return int(prediction[2]) == 1
-
-    def _place_limit(self, action: OrderAction, limit: float):
-        self._pending_orders
-
-    def _go_long(self):
+    def go_long(self):
         # TODO: should reconcile with any pending orders
         self._pending_orders = []
         if not self._tracker.is_long():
@@ -137,7 +129,7 @@ class SimTrader:
             self._pending_orders.append(order)
             # print(f"Long at {order.time_sent}")
 
-    def _go_short(self):
+    def go_short(self):
         # TODO: should reconcile with any pending orders
         self._pending_orders = []
         if not self._tracker.is_short():
@@ -150,7 +142,7 @@ class SimTrader:
             self._pending_orders.append(order)
             # print(f"Short at {order.time_sent}")
 
-    def _go_flat(self):
+    def go_flat(self):
         self._pending_orders = []
         if not self._tracker.is_flat():
             action = OrderAction.Sell if self._tracker.is_long() else OrderAction.Buy
@@ -161,3 +153,10 @@ class SimTrader:
             )
             self._pending_orders.append(order)
             # print(f"Flat at {order.time_sent}")
+
+    #----------------------------------------------------------------
+    # Callbacks to be implemented by subclass
+    #----------------------------------------------------------------
+
+    def on_order_filled(self, execution: OrderExecution):
+        pass
