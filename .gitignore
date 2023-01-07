@@ -133,3 +133,8 @@ dmypy.json
 
 # PyCharm
 .idea/
+
+# temporary directories
+x/
+y/
+z/

@@ -3,7 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 import pytz
-import enum
 from logging import info, warn, fatal, error, debug
 
 
