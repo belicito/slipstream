@@ -16,6 +16,6 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/belicito/slipstream/issues"
     },
     license='MIT',
-    packages=['slipstream', 'slipstream.data', 'slipstream.trading'],
+    packages=['slipstream', 'slipstream.data', 'slipstream.trading', 'slipstream.fsm'],
     install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher'],
 )
