@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 
 class _Trigger:
@@ -12,20 +12,25 @@ class _Trigger:
 
         
 class State:
-    def __init__(self, name: str, machine: "Machine") -> None:
+    def __init__(self, name: str, machine: "Machine" = None, on_entry: List[Callable] = [], on_exit: List[Callable] = []) -> None:
         self.name = name
         self.machine = machine
         self.transition_map: Dict[Event, State] = {}
-        self._entry_funcs = set()
-        self._exit_funcs = set()
+        self._entry_funcs = set(on_entry)
+        self._exit_funcs = set(on_exit)
 
     def set_transition(self, event: "Event", dest: "State"):
         assert event.name not in self.transition_map, f"Transition already in place {self.name} + {event.name}"
         self.transition_map[event] = dest
 
     def __add__(self, other):
-        assert isinstance(other, Event), f"Unable to operate on object of {type(other)}"
-        return _Trigger(state=self, event=other)
+        if isinstance(other, str):
+            event = self.machine.get_event(name=other)
+        elif isinstance(other, Event):
+            event = other
+        else:
+            raise ValueError(f"Unable to operate on object of {type(other)}")
+        return _Trigger(state=self, event=event)
 
     def add_entry(self, f: callable):
         self._entry_funcs.add(f)
@@ -73,6 +78,13 @@ class Machine:
     def state(self) -> State:
         return self._state
 
+    def add_states(self, *states):
+        for s in states:
+            if isinstance(s, State):
+                assert s.name not in self._entity_map, f"State name '{s.name}' already taken"
+                s.machine = self
+                self._entity_map[s.name] = s
+
     def make_state(self, name: str) -> State:
         assert name not in self._entity_map, f"Name '{name}' is already used in this state machine"
         state = State(name=name, machine=self)
@@ -92,7 +104,7 @@ class Machine:
             return self.make_state(ident)
         return None
 
-    def event(self, name: str, create: bool = True) -> Optional[Event]:
+    def get_event(self, name: str, create: bool = True) -> Optional[Event]:
         retval = self._entity_map.get(name, None)
         if retval is not None:
             assert isinstance(retval, Event), f"{name} is not associated with a event but a {type(retval)}"

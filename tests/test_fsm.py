@@ -7,7 +7,7 @@ def test_2_states_flipping():
     on.add_entry(lambda: print("state is ON"))
     off = m.get_state("Off")
     off.add_entry(lambda: print("state is OFF"))
-    flip = m.event("Flip")
+    flip = m.get_event("Flip")
     
     on + flip >> off
     off + flip >> on
