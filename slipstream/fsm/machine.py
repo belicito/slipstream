@@ -125,8 +125,12 @@ class Machine:
         self._started = True
         self._state.enter()
 
-    def handle(self, event: Event):
+    def handle(self, event: EntityId):
         assert self.started, "Machine has not been started. Call start() first"
+        if isinstance(event, str):
+            ev_name = event
+            event = self._entity_map.get(ev_name, None)
+            assert event is not None and isinstance(event, Event), f"No event '{ev_name}' registered in state machine"
         next = self._state.transition_map.get(event, None)
         if next is not None:
             self._state.exit()

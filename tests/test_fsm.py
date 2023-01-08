@@ -1,14 +1,13 @@
 import pytest
-from slipstream.fsm import Machine
+from slipstream.fsm import Machine, State
 
 def test_2_states_flipping():
     m = Machine()
-    on = m.get_state("On")
-    on.add_entry(lambda: print("state is ON"))
-    off = m.get_state("Off")
-    off.add_entry(lambda: print("state is OFF"))
-    flip = m.get_event("Flip")
-    
+    on = State("On", on_entry=[lambda: print("state is ON")])
+    off = State("Off", on_entry=[lambda: print("state is OFF")])
+    m.add_states(on, off)
+    flip = "Flip"
+
     on + flip >> off
     off + flip >> on
 
