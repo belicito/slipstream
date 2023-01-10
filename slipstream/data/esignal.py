@@ -30,22 +30,22 @@ class ESignalCSV:
             self.df = self._drop_useless_cols(self.df)
 
         timestamp_col = "Timestamp"
-        self.df = self._transform_date_time_columns(self.df, out_col=timestamp_col, timezone=self.timezone)
+        self.df = self.transform_date_time_columns(self.df, out_col=timestamp_col, timezone=self.timezone)
 
         if do_save_cache:
             self.df.to_parquet(cache_path)
         return self.df
 
     @staticmethod
-    def _transform_date_time_columns(df, date_col: str = "Date", time_col: str = "Time",
+    def transform_date_time_columns(df, date_col: str = "Date", time_col: str = "Time",
                                     out_col: str = "Timestamp", timezone: str = "EST",
-                                    drop_cols: bool = True) -> pd.DataFrame:
+                                    keep_cols: bool = False) -> pd.DataFrame:
         assert date_col in df and time_col in df, "Dataframe must have 'Date' or 'Time' columns"
         tees = pd.Series(np.empty(len(df))).apply(lambda t: 'T')
         datetime_strs = df[date_col] + tees + df[time_col]
         timestamps = pd.DatetimeIndex(datetime_strs, tz=pytz.timezone(timezone))
 
-        if drop_cols:
+        if not keep_cols:
             info(f"Dropping Date and Time columns")
             df = df.drop(columns=[date_col, time_col])
         df[out_col] = timestamps
