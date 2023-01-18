@@ -72,33 +72,58 @@ class SimTrader:
 
     def _eval_orders(self, low: PriceLike, high: PriceLike):
         filled = []
+        # print(f"{len(self._pending_orders)} orders to eval...")
         for order in self._pending_orders:
-            if order.type == OrderType.Market and self._pending_duration(order) >= self.MinOrderFillDelay:
+            # print(f"Eval order: {order.action} {order.type} {order.size} {order.limit or ''}")
+            if self._pending_duration(order) < self.MinOrderFillDelay:
+                self._fill_slip_bar_count += 1
+                continue
+
+            fill_price = None
+            if order.type == OrderType.Market:
                 # Enhance: Should randomize fill price instead of always using worst
                 if order.action in [OrderAction.Buy, OrderAction.BuyToCover]:
                     fill_price = (high + self.price_slip)
                 else:
                     fill_price = (low - self.price_slip)
-            elif order.type == OrderType.Limit and low <= order.limit <= high and self._pending_duration(order) >= self.MinOrderFillDelay:
-                fill_price = order.limit
-            else:
-                self._fill_slip_bar_count += 1
-                continue
 
-            execution = OrderExecution(
-                order=order,
-                price=fill_price,
-                cost=self.TradeCost * order.size
-            )
-            execution.time_received = order.time_sent
-            execution.time_executed = self.cur_time
-            self._tracker.add_execution(execution)
-            filled.append(order)
-            self._exec_delays.append(execution.time_executed - execution.time_received)
-            self.on_order_filled(execution=execution)
-            
+            elif order.type == OrderType.Limit:
+
+                # TODO: Need more realistic fill logics for limit orders
+
+                high_below_buy_limit = lambda: (
+                    order.action in [OrderAction.Buy, OrderAction.BuyToCover] and
+                    order.limit > high
+                )
+                low_above_sell_limit = lambda: (
+                    order.action in [OrderAction.Sell, OrderAction.SellShort] and
+                    order.limit < low
+                )
+                limit_between_hilo = lambda: low <= order.limit <= high
+
+                if (high_below_buy_limit() or
+                    low_above_sell_limit() or
+                    limit_between_hilo()):
+                    fill_price = order.limit
+
+            if fill_price is not None:
+                execution = OrderExecution(
+                    order=order,
+                    price=fill_price,
+                    cost=self.TradeCost * order.size
+                )
+                execution.time_received = order.time_sent
+                execution.time_executed = self.cur_time
+                self._tracker.add_execution(execution)
+                filled.append(order)
+                self._exec_delays.append(execution.time_executed - execution.time_received)
+
         for order in filled:
             self._pending_orders.remove(order)
+
+        # Leave this to the end so that other data structures are settled when callbacks are called
+        for order in filled:
+            self.on_order_filled(execution=execution)
 
     def _pending_duration(self, order: Order) -> pd.Timedelta:
         assert order.time_sent is not None, "Order has no sent time"
@@ -118,7 +143,6 @@ class SimTrader:
 
     def go_long(self):
         # TODO: should reconcile with any pending orders
-        self._pending_orders = []
         if not self._tracker.is_long():
             order_size = 2 * self.ContractCount if self._tracker.is_short() else self.ContractCount
             order = Order(
@@ -131,7 +155,6 @@ class SimTrader:
 
     def go_short(self):
         # TODO: should reconcile with any pending orders
-        self._pending_orders = []
         if not self._tracker.is_short():
             order_size = 2 * self.ContractCount if self._tracker.is_long() else self.ContractCount
             order = Order(
@@ -143,7 +166,6 @@ class SimTrader:
             # print(f"Short at {order.time_sent}")
 
     def go_flat(self):
-        self._pending_orders = []
         if not self._tracker.is_flat():
             action = OrderAction.Sell if self._tracker.is_long() else OrderAction.Buy
             order = Order(

@@ -16,7 +16,6 @@ class TradesAnalysis:
             arg=self._df["Exit Time"], 
             infer_datetime_format=True
         )
-        self._df["Durations"] = self._df["Exit Time"] - self._df["Entry Time"]
 
     @property
     def trades(self) -> pd.DataFrame:
@@ -35,12 +34,20 @@ class TradesAnalysis:
         return self._df[self._df["Profit"] == 0.]
 
     @property
-    def durations(self) -> pd.Series:
-        return self._df["Durations"]
+    def market_durations(self) -> pd.Series:
+        return self._df["Exit Time"] - self._df["Entry Time"]
+
+    @property
+    def sideline_durations(self) -> pd.Series:
+        return self._df["Entry Time"] - self._df["Exit Time"].shift(periods=1)
 
     @staticmethod
     def _mean_std_min_max(s: pd.Series) -> str:
         return f"mean={s.mean()} stdev={s.std()} range=({s.min()}, {s.max()})"
+
+    def in_market_time(self) -> float:
+        total_time = self._df["Exit Time"].max() - self._df["Entry Time"].min()
+        return self.market_durations.sum() / total_time
 
     def summary(self) -> Dict[str, Any]:
         trades = self.trades
@@ -64,5 +71,7 @@ class TradesAnalysis:
             "Profits (Loss)": self._mean_std_min_max(losses["Profit"]),
             "Run-Ups (Loss)": self._mean_std_min_max(losses["RunUp"]),
             "Draw-Downs (Loss)": self._mean_std_min_max(losses["DrawDown"]),
-            "Durations": self._mean_std_min_max(self.durations)
+            "Market Durations(mins)": self._mean_std_min_max(self.market_durations / pd.Timedelta("1m")),
+            "Sideline Durations(mins)": self._mean_std_min_max(self.sideline_durations / pd.Timedelta("1m")),
+            "In-Market Time": f"{100. * self.in_market_time():.2f}%"
         }
