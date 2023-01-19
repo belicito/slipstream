@@ -3,6 +3,8 @@ import pandas as pd
 
 
 class Renko:
+    """Iterator class to return Renko bars as list of tuple: (index, open, high, low, close)"""
+
     def __init__(self, s: pd.Series, bar_size: float):
         assert len(s) > 1, "Series of 2+ numbers needed"
         self.s = s
