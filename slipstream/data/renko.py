@@ -3,32 +3,26 @@ import pandas as pd
 
 
 class Renko:
-    class Iterator:
-        def __init__(self, data: Iterable, brick: float):
-            self.data = data
-            self.brick = brick
-            self.data_i = 0
-            self.data_j = 0
-            self.trend = 1
-
-        def __next__(self):
-            ret_val = self.data[self.data_i] + (self.trend * self.data_j * self.brick)
-            # TODO: evaluate and advance data_i and data_j
-            return ret_val
-
-    def __init__(self, data: Iterable, brick_size: float):
-        self.data = data
-        self.brick_size = brick_size
-        self._pandas_series: pd.Series = None
-
-    @property
-    def series(self) -> pd.Series:
-        if self._pandas_series is None:
-            self._create_series()
-        return self._pandas_series
-
-    def _create_series(self):
-        raise NotImplementedError
+    def __init__(self, s: pd.Series, bar_size: float):
+        assert len(s) > 1, "Series of 2+ numbers needed"
+        self.s = s
+        self.size = bar_size
 
     def __iter__(self):
-        return self.Iterator(data=self.data, brick=self.brick_size)
+        # Assume initial trend with first two values
+        if self.s[1] > self.s[0]:
+            _hi_bound = self.s[0] + self.size
+            _lo_bound = self.s[0] - (2 * self.size)
+        else:
+            _lo_bound = self.s[0] - self.size
+            _hi_bound = self.s[0] + (2 * self.size)
+
+        for i, x in self.s.iloc[1:].items():
+            while x >= _hi_bound:
+                yield (i, _hi_bound - self.size, _hi_bound, _hi_bound - self.size, _hi_bound)
+                _hi_bound += self.size
+                _lo_bound += self.size
+            while x <= _lo_bound:
+                yield (i, _lo_bound + self.size, _lo_bound + self.size, _lo_bound, _lo_bound)
+                _hi_bound -= self.size
+                _lo_bound -= self.size
