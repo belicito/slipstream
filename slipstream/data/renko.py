@@ -1,5 +1,6 @@
 from typing import Iterable
 import pandas as pd
+import numpy as np
 
 
 class Renko:
@@ -28,3 +29,18 @@ class Renko:
                 yield (i, _lo_bound + self.size, _lo_bound + self.size, _lo_bound, _lo_bound)
                 _hi_bound -= self.size
                 _lo_bound -= self.size
+
+    @staticmethod
+    def get_dataframe(s: pd.Series, bar_size: float) -> pd.DataFrame:
+        ar = np.array(list(Renko(s, bar_size)))
+        assert ar.shape[1] == 5, "Expected rows of tuple: (index, open, high, low, close)"
+        df = pd.DataFrame(
+            {
+                "Open": ar[:, 1],
+                "High": ar[:, 2],
+                "Low": ar[:, 3],
+                "Close": ar[:, 4],
+            },
+            index=ar[:, 0]
+        )
+        return df
