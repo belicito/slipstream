@@ -1,6 +1,71 @@
-from typing import Iterable
-import pandas as pd
+from typing import Iterable, List, Optional, Tuple
+import math
 import numpy as np
+import pandas as pd
+from typing import Union
+
+
+__all__ = [
+    "RenkoBuilder",
+    "Renko"
+]
+
+
+class RenkoBuilder:
+    def __init__(self, bar_size: float) -> None:
+        self._bar_size = bar_size
+        self._last_price = np.nan
+        self._lo_bound = np.nan
+        self._hi_bound = np.nan
+
+    def ingest(self, price: float) -> List[Tuple[float, float]]:
+        """Ingest one price point and return list of Renko bars containing OHLC"""
+        if np.isnan(self._last_price):
+            self._last_price = math.floor(price)
+            return []
+        
+        if np.isnan(self._lo_bound):
+            # Assume initial trend with first two values
+            if price > self._last_price:
+                self._hi_bound = self._last_price + self._bar_size
+                self._lo_bound = self._last_price - (2 * self._bar_size)
+            else:
+                self._lo_bound = self._last_price - self._bar_size
+                self._hi_bound = self._last_price + (2 * self._bar_size)
+            # return []
+
+        ret_values = []
+        while price >= self._hi_bound:
+            open, close = self._hi_bound - self._bar_size, self._hi_bound
+            ret_values.append((open, close))
+            self._hi_bound += self._bar_size
+            self._lo_bound += self._bar_size
+        while price <= self._lo_bound:
+            open, close = self._lo_bound + self._bar_size, self._lo_bound
+            ret_values.append((open, close))
+            self._hi_bound -= self._bar_size
+            self._lo_bound -= self._bar_size
+        return ret_values
+
+    @staticmethod
+    def get_dataframe(data: Union[pd.DataFrame, pd.Series, Iterable], bar_size: float, selector: str = "Close") -> pd.DataFrame:
+        """Return Renko bars generated given data"""
+        rb = RenkoBuilder(bar_size=bar_size)
+        if isinstance(data, pd.Series):
+            price_series = data
+        elif isinstance(data, pd.DataFrame):
+            price_series = data[selector]
+        else:
+            raise ValueError("Only Pandas DataFrame or Series")
+        renko_bars = []
+        indices = []
+        for idx, val in price_series.items():
+            rbars = rb.ingest(price=val)
+            if len(rbars) == 0:
+                continue
+            renko_bars.extend(rbars)
+            indices.extend([idx] * len(rbars))
+        return pd.DataFrame(renko_bars, columns=["Open", "Close"], index=indices)
 
 
 class Renko:
