@@ -10,11 +10,9 @@ class TradesAnalysis:
         self._df = pd.read_csv(trades_csv)
         self._df["Entry Time"] = pd.to_datetime(
             arg=self._df["Entry Time"], 
-            infer_datetime_format=True
         )
         self._df["Exit Time"] = pd.to_datetime(
             arg=self._df["Exit Time"], 
-            infer_datetime_format=True
         )
 
     @property

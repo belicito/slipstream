@@ -12,7 +12,7 @@ from slipstream.trading.positions import PositionTracker, Position
 # p = PositionTracker(initial_equity=10000.0)
 
 @pytest.fixture()
-def p():
+def p() -> PositionTracker:
     return PositionTracker(initial_equity=10000.0)
 
 def start_with(p: PositionTracker, equity: float, position: int = 0, entry_price: float = 0.0):
@@ -89,7 +89,7 @@ def test_composite_long_profit(p):
         order=Order(action=OrderAction.Sell, size=200),
         price=12.0
     ))
-    assert len(p.trades) == 1
+    assert len(p.trades) == 2
     assert p.equity_value == 10300.0
 
 def test_composite_short_profit(p):
@@ -107,7 +107,7 @@ def test_composite_short_profit(p):
         order=Order(action=OrderAction.BuyToCover, size=200),
         price=9.0
     ))
-    assert len(p.trades) == 1
+    assert len(p.trades) == 2
     assert p.equity_value == 10300.0
 
 def test_composite_short_loss(p):
@@ -125,7 +125,7 @@ def test_composite_short_loss(p):
         order=Order(action=OrderAction.BuyToCover, size=200),
         price=11.5
     ))
-    assert len(p.trades) == 1
+    assert len(p.trades) == 2
     assert p.equity_value == 9800.0
 
 def test_multi_trades_closed(p, opening_size=200):

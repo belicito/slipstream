@@ -17,5 +17,10 @@ setuptools.setup(
     },
     license='MIT',
     packages=['slipstream', 'slipstream.data', 'slipstream.trading', 'slipstream.fsm'],
+    entry_points = {
+        "console_scripts": [
+            "slipstream = slipstream.cli:main"
+        ]
+    },
     install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher'],
 )

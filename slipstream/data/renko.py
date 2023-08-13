@@ -6,8 +6,7 @@ from typing import Union
 
 
 __all__ = [
-    "RenkoBuilder",
-    "Renko"
+    "RenkoBuilder"
 ]
 
 

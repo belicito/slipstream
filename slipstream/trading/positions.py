@@ -4,7 +4,7 @@ import numpy as np
 from slipstream.algos import *
 from slipstream.trading.model import *
 from enum import IntEnum
-from typing import Tuple, List, Any
+from typing import Tuple, List, Any, Union
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -43,7 +43,7 @@ class Position:
         self._size = size
         self.entry = entry
         self.trading_cost = Price(entry_cost)
-        self.time_entered: pd.Timestamp = None
+        self.time_entered: Optional[pd.Timestamp] = None
         self.market_low: Optional[PriceLike] = None
         self.market_high: Optional[PriceLike] = None
 
@@ -70,7 +70,7 @@ class Position:
         pos.time_entered = pd.Timestamp(execution.time_executed)
         return pos
 
-    def partial_cost(self, size: int = None, ratio: float = None) -> Price:
+    def partial_cost(self, size: Optional[int] = None, ratio: Optional[float] = None) -> Price:
         if size is not None:
             return self.cost * (size / self.size)
         elif ratio is not None:
@@ -105,7 +105,7 @@ class Position:
     def merge(self, other: 'Position'):
         assert other.trade_type == self.trade_type
         my_total_price = self.size * self.entry
-        its_total_price = other.size * self.entry
+        its_total_price = other.size * other.entry
         self._size += other.size
         self.entry = (my_total_price + its_total_price) / self._size
         self.trading_cost += other.trading_cost
@@ -116,16 +116,14 @@ class Position:
 
 class PositionTracker:
     def __init__(self, initial_equity: float = 10000.0, buy_cost: float = 0, sell_cost: float = 0, price_multiplier: float = 1.0):
-        # self.buy_cost = buy_cost
-        # self.sell_cost = sell_cost
-        self.trades: List[MeasuredTrade] = []
+        self.trades: List[Trade] = []
         self.open_positions: List[Position] = []
         self.equity_value = initial_equity
         self._aggregated_position = None
-        self._trades_sink: io.TextIOWrapper = None
+        self._trades_sink: Optional[io.TextIOWrapper] = None
         self._price_mult = price_multiplier
 
-    def start_recording_trades(self, path: str = None):
+    def start_recording_trades(self, path: str):
         if self._trades_sink is None:
             logging.info(f"Logging trades to {path}")
             self._trades_sink = open(path, "wt+")
@@ -139,10 +137,10 @@ class PositionTracker:
             self._trades_sink.close()
 
     def is_long(self) -> bool:
-        return self.position and self.position.trade_type == TradeType.Long
+        return self.position is not None and self.position.trade_type == TradeType.Long
         
     def is_short(self) -> bool:
-        return self.position and self.position.trade_type == TradeType.Short
+        return self.position is not None and self.position.trade_type == TradeType.Short
         
     def is_flat(self) -> bool:
         return self.position is None
@@ -157,7 +155,7 @@ class PositionTracker:
         return self._aggregated_position
 
     def add_execution(self, execution: OrderExecution):
-        if len(self.open_positions) == 0 or self.position.is_same_side(execution):
+        if len(self.open_positions) == 0 or self.position is not None and self.position.is_same_side(execution):
             self.open_positions.append(Position.from_execution(execution))
         else:
             residual_exec = self._reduce_position(execution)
@@ -184,7 +182,7 @@ class PositionTracker:
             cost=position.partial_cost(size=deduct_size) + execution.partial_cost(size=deduct_size),
             price_mult=self._price_mult
         )
-        trade.time_entered = position.time_entered
+        trade.time_entered = position.time_entered if position.time_entered else pd.Timestamp.now(tz="utc")
         trade.time_exited = execution.time_executed
         trade.eval_market_high_low(high=position.market_high, low=position.market_low)
         self._add_trade(trade)
@@ -216,95 +214,3 @@ class PositionTracker:
     def eval_market_prices(self, *prices):
         for position in self.open_positions:
             position.eval_market_prices(*prices)
-
-
-# class PositionTracker:
-#     def __init__(self, initial_equity: float = 10000.0, buy_cost: float = 0, sell_cost: float = 0, point_multiplier: float = 1.0):
-#         self.buy_cost = buy_cost
-#         self.sell_cost = sell_cost
-#         self._equity_value = initial_equity
-#         self._trades: List[MeasuredTrade] = []
-#         self._position: Optional[Position] = None
-#         self._avg_price: float = math.nan
-#         self._point_mult = point_multiplier
-
-#     def add_execution(self, execution: OrderExecution):
-#         if self._position is None:
-#             self._position = Position.from_execution(execution)
-#             return
-
-#         if self._position.trade_type == TradeType.from_order_action(execution.order.action):
-#             self.grow_position_with_execution(execution)
-#             return
-
-#         # At this point we know execution is opposite side of current position
-#         size_diff = self._position.size - execution.size
-#         self.reduce_position(execution=execution)
-
-#         if size_diff < 0:
-#             self._position = Position(trade_type=TradeType.from_order_action(execution.order.action),
-#                                       size=size_diff,
-#                                       entry=execution.price)
-
-#     def update_book_state(self, book_state: BookState):
-#         raise NotImplementedError
-
-#     @property
-#     def equity_value(self) -> float:
-#         # TODO: if market price is set, return mark-to-market value
-#         return self._equity_value
-
-#     @property
-#     def trades(self) -> List[MeasuredTrade]:
-#         return self._trades
-
-#     @property
-#     def position(self) -> Optional[Position]:
-#         return self._position
-
-#     def grow_position_with_execution(self, execution: OrderExecution):
-#         if all_none(self._position.market_low, self._position.market_high):
-#             position_cost = self._position.size * self._position.entry
-#             position_cost += execution.size * execution.price
-#             self._position.size += execution.size
-#             self._position.entry = position_cost / self._position.size
-#             self._position.trading_cost += execution.cost
-#         else:
-#             # TODO: to keep market low/high accurate, need to create new
-#             raise NotImplementedError
-
-#     def reduce_position(self, execution: OrderExecution):
-#         profit_mult = 1 if self._position.trade_type == TradeType.Long else -1
-#         profit_mult *= self._point_mult
-#         profit = profit_mult * execution.size * (execution.price - self._position.entry)
-
-#         # Find portion of trade cost
-#         this_cost = self._position.trading_cost * (execution.size / self._position.size)
-#         self._position.trading_cost -= this_cost  # make _position.trading_cost accounts for remaining position
-#         this_cost += execution.cost  # include cost of this execution
-#         profit -= this_cost
-
-#         trade = MeasuredTrade(trade_type=TradeType.from_order_action(execution.order.action),
-#                                size=execution.size,
-#                                profit=profit)
-#         self._trades.append(trade)
-#         self._equity_value += profit
-#         self._position.size = max(0, self._position.size - trade.size)
-#         if self._position.size == 0:
-#             self._position = None
-
-#     def assess(self, price: PriceLike):
-#         if self._position is None:
-#             return
-#         price_diff = Price(price) - self._position.entry
-#         price_mult = 1 if self._position.trade_type == TradeType.Long else -1
-#         price_mult *= self._point_mult
-#         profit = price_mult * price_diff * self._position.size
-#         self._position.run_up = max(0, self._position.run_up, profit)
-#         self._position.draw_down = min(0, self._position.draw_down, profit)
-
-#     def is_long(self) -> bool:
-#         return self.position and self.position.trade_type == TradeType.Long
-
-#     def is_short(self) -> bool:
-#         return self.position and self.position.trade_type == TradeType.Short
