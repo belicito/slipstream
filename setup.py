@@ -16,7 +16,13 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/belicito/slipstream/issues"
     },
     license='MIT',
-    packages=['slipstream', 'slipstream.data', 'slipstream.trading', 'slipstream.fsm'],
+    packages=[
+        'slipstream', 
+        'slipstream.data', 
+        'slipstream.trading', 
+        'slipstream.fsm', 
+        'slpstream.market'
+    ],
     entry_points = {
         "console_scripts": [
             "slipstream = slipstream.cli:main"
