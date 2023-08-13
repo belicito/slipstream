@@ -21,7 +21,7 @@ setuptools.setup(
         'slipstream.data', 
         'slipstream.trading', 
         'slipstream.fsm', 
-        'slpstream.market'
+        'slipstream.market'
     ],
     entry_points = {
         "console_scripts": [
