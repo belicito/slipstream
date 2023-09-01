@@ -118,6 +118,7 @@ class PositionTracker:
     def __init__(self, initial_equity: float = 10000.0, buy_cost: float = 0, sell_cost: float = 0, price_multiplier: float = 1.0):
         self.trades: List[Trade] = []
         self.open_positions: List[Position] = []
+        self.initial_equity = initial_equity
         self.equity_value = initial_equity
         self._aggregated_position = None
         self._trades_sink: Optional[io.TextIOWrapper] = None
