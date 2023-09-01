@@ -69,7 +69,7 @@ class TradesAnalysis:
             "Profits (Loss)": self._mean_std_min_max(losses["Profit"]),
             "Run-Ups (Loss)": self._mean_std_min_max(losses["RunUp"]),
             "Draw-Downs (Loss)": self._mean_std_min_max(losses["DrawDown"]),
-            "Market Durations(mins)": self._mean_std_min_max(self.market_durations / pd.Timedelta("1m")),
-            "Sideline Durations(mins)": self._mean_std_min_max(self.sideline_durations / pd.Timedelta("1m")),
+            # "Market Durations(mins)": self._mean_std_min_max(self.market_durations / pd.Timedelta("1m")),
+            # "Sideline Durations(mins)": self._mean_std_min_max(self.sideline_durations / pd.Timedelta("1m")),
             "In-Market Time": f"{100. * self.in_market_time():.2f}%"
         }

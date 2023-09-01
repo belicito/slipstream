@@ -16,11 +16,11 @@ class SimTrader:
     SyntheticDelay = pd.Timedelta(milliseconds=1)
     MinOrderFillDelay = pd.Timedelta(milliseconds=500)
 
-    def __init__(self, results_dir: str = "/tmp", price_mult = 50.0) -> None:
+    def __init__(self, results_dir: str = "/tmp", *args, **kwargs) -> None:
         self._prev_time = None
         self._cur_time = None
         self._pending_orders: List[Order] = []
-        self.tracker = PositionTracker(price_multiplier=price_mult)
+        self.tracker = PositionTracker(*args, **kwargs)
 
         self.results_dir = results_dir
         self.trades_path = os.path.join(
@@ -73,6 +73,10 @@ class SimTrader:
     @property
     def trades(self) -> List[Trade]:
         return self.tracker.trades
+
+    @property
+    def cur_profit(self) -> PriceLike:
+        return self.tracker.equity_value - self.tracker.initial_equity
 
     def _eval_orders(self, low: PriceLike, high: PriceLike):
         filled = []
