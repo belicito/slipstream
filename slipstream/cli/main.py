@@ -1,20 +1,18 @@
 import os
 import sys
-from argparse import ArgumentParser
-from .trades import show_trades, summarize_trades
+from slipstream.cli.trades import app as trades_app
+from slipstream.cli.bento import app as bento_app
+import typer
+
+
+app = typer.Typer()
+app.add_typer(bento_app, name="bento")
+app.add_typer(trades_app, name="trades")
 
 
 def main():
-    ap = ArgumentParser(
-        prog="slipstream",
-    )
-    ap.add_argument("--show-trades", dest="show_trades", metavar="<trades file>", nargs=1)
-    ap.add_argument("--summarize-trades", dest="summarize_trades", metavar="<trades file>", nargs=1)
-    args = ap.parse_args()
-    
-    if args.show_trades is not None:
-        file = args.show_trades[0]
-        show_trades(file)
-    elif args.summarize_trades is not None:
-        file = args.summarize_trades[0]
-        summarize_trades(file)
+    app()
+
+
+if __name__ == "__main__":
+    main()
