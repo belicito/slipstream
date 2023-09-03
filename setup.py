@@ -29,5 +29,5 @@ setuptools.setup(
             "slipstream = slipstream.cli:main"
         ]
     },
-    install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher', 'typer'],
+    install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher', 'typer', 's3fs', 'zstd'],
 )
