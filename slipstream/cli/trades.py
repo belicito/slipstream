@@ -1,9 +1,13 @@
 import os
 import pandas as pd
 from slipstream.trading.analysis import TradesAnalysis
+import typer
+
+app = typer.Typer()
 
 
-def show_trades(file: str):
+@app.command()
+def show(file: str):
     assert os.path.exists(file), f"File not found: {file}"
     trades = pd.read_csv(file)
     print(file, "trades:", trades.shape)
@@ -11,7 +15,8 @@ def show_trades(file: str):
     # TODO: format the display of fields
 
 
-def summarize_trades(file: str):
+@app.command()
+def summarize(file: str):
     assert os.path.exists(file), f"File not found: {file}"
     analysis = TradesAnalysis(file)
     summary = analysis.summary()

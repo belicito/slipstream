@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='slipstream',
-    version='0.0.3',
+    version='0.0.4',
     author='Belicito',
     author_email='belicito@github.com',
     description='Slipstream',
@@ -17,10 +17,11 @@ setuptools.setup(
     },
     license='MIT',
     packages=[
-        'slipstream', 
-        'slipstream.data', 
-        'slipstream.trading', 
-        'slipstream.fsm', 
+        'slipstream',
+        'slipstream.cli',
+        'slipstream.data',
+        'slipstream.trading',
+        'slipstream.fsm',
         'slipstream.market'
     ],
     entry_points = {
@@ -28,5 +29,5 @@ setuptools.setup(
             "slipstream = slipstream.cli:main"
         ]
     },
-    install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher'],
+    install_requires=['numpy', 'pandas', 'pytz', 'pydispatcher', 'typer'],
 )
