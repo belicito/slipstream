@@ -54,8 +54,8 @@ class Trade:
             str(float(self.entry)),
             str(float(self.exit)),
             str(float(self.cost)),
-            self.time_entered.isoformat(),
-            self.time_exited.isoformat()
+            self.time_entered.isoformat(timespec='microseconds'),
+            self.time_exited.isoformat(timespec='microseconds')
         ]
 
     @classmethod
