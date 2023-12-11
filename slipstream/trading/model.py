@@ -75,6 +75,10 @@ class Trade:
 class OrderType(Enum):
     Market = 1
     Limit = 2
+    StopMarket = 3
+    StopLimit = 4
+    TrailingStopMarket = 5
+    TrailingStopLimit = 6
 
 
 class OrderAction(Enum):
@@ -90,30 +94,51 @@ class OrderAction(Enum):
                 self.BuyToCover: self.SellShort}[self]
 
 
-class Order(NamedTuple):
+@dataclass
+class Order:
     action: OrderAction
     size: int
     type: OrderType = OrderType.Market
     limit: PriceLike = None
+    stop: PriceLike = None
+    peak: PriceLike = None
     time_sent: pd.Timestamp = None
     on_execution: Optional[Callable[['OrderExecution'], None]] = None
+    activated: bool = True  # Used for Stop order types
 
-    def can_be_fulfilled_with(self,
-                              price: PriceLike = None,
-                              prices: PriceRange = None) -> Tuple[bool, Optional['OrderExecution']]:
-        cmp_range = PriceRange(prices=(price, price)) if price is not None else prices
-        assert cmp_range is not None, "Must have value for price or prices"
-        if self.type == OrderType.Market:
-            return True, OrderExecution(order=self, size=self.size,
-                                        price=cmp_range.high if self.action == OrderAction.Buy else cmp_range.low)
-        elif self.type == OrderType.Limit:
-            assert self.limit is not None, f"limit must be set for order type {self.type}"
-            if (self.action == OrderAction.Buy and self.limit > cmp_range.low) or \
-               (self.action != OrderAction.Buy and self.limit < cmp_range.high):
-                return True, OrderExecution(order=self, size=self.size, price=self.limit)
-            else:
-                return False, None
-        raise NotImplementedError(f"Cannot handle order type {self.type}")
+    def is_buying(self) -> bool:
+        return True if self.action in (OrderAction.Buy, OrderAction.BuyToCover) else False
+
+    def is_stop_type(self) -> bool:
+        return self.type in (
+            OrderType.StopLimit,
+            OrderType.StopMarket,
+            OrderType.TrailingStopLimit,
+            OrderType.TrailingStopMarket
+        )
+    
+    def is_trailing_type(self) -> bool:
+        return self.type in (
+            OrderType.TrailingStopLimit,
+            OrderType.TrailingStopMarket
+        )
+
+    # def can_be_fulfilled_with(self,
+    #                           price: PriceLike = None,
+    #                           prices: PriceRange = None) -> Tuple[bool, Optional['OrderExecution']]:
+    #     cmp_range = PriceRange(prices=(price, price)) if price is not None else prices
+    #     assert cmp_range is not None, "Must have value for price or prices"
+    #     if self.type == OrderType.Market:
+    #         return True, OrderExecution(order=self, size=self.size,
+    #                                     price=cmp_range.high if self.action == OrderAction.Buy else cmp_range.low)
+    #     elif self.type == OrderType.Limit:
+    #         assert self.limit is not None, f"limit must be set for order type {self.type}"
+    #         if (self.action == OrderAction.Buy and self.limit > cmp_range.low) or \
+    #            (self.action != OrderAction.Buy and self.limit < cmp_range.high):
+    #             return True, OrderExecution(order=self, size=self.size, price=self.limit)
+    #         else:
+    #             return False, None
+    #     raise NotImplementedError(f"Cannot handle order type {self.type}")
 
 
 class OrderExecutionResult(Enum):
