@@ -102,6 +102,7 @@ def test_trail_stop_market_fill():
     p = sim.tracker.position
     assert p == None
     sim.eval_market(t0 + 20 * dt, low=11.9, high=12.0)  # Peak
+    assert order.peak == 12.0
     p = sim.tracker.position
     assert p == None
     sim.eval_market(t0 + 30 * dt, low=11.0, high=11.1)
