@@ -28,12 +28,12 @@ def test_limit_order_fill():
     sim.eval_market(t0 + 3 * dt, low=9.8, high=9.9)
     p = sim.tracker.position
     assert p == None
- 
+
     sim.eval_market(t0 + 5 * dt, low=9.5, high=9.7)
     p = sim.tracker.position
     assert p.trade_type == TradeType.Long
     assert p.size == 1
- 
+
 def test_stop_order_fill():
     t0 = pd.Timestamp.now()
     dt = pd.Timedelta(seconds=1)
@@ -82,7 +82,7 @@ def test_stop_limit_order_fill():
     assert p.trade_type == TradeType.Short
     assert p.size == 1
 
-def test_trail_stop_market_fill():
+def test_trail_stop_market_sell_fill():
     """
     stop = 1.5
     10.1 (initial)
@@ -91,7 +91,7 @@ def test_trail_stop_market_fill():
     11.0
     10.4 (exit)
     """
-    
+
     t0 = pd.Timestamp.now()
     dt = pd.Timedelta(seconds=1)
     sim = SimTrader()
@@ -110,5 +110,38 @@ def test_trail_stop_market_fill():
     assert p == None
     sim.eval_market(t0 + 40 * dt, low=10.3, high=10.4)  # Exit
     p = sim.tracker.position
+    assert p.entry == 10.3
     assert p.trade_type == TradeType.Short
+    assert p.size == 1
+
+def test_trail_stop_market_buy_fill():
+    """
+    stop = 2.5
+    100.1 (initial)
+    99.2
+    97.0 (peak)
+    99.4
+    100.4 (exit)
+    """
+
+    t0 = pd.Timestamp.now()
+    dt = pd.Timedelta(seconds=1)
+    sim = SimTrader()
+    sim.eval_market(t0, low=100.1, high=100.2)
+    order = sim.place_trail_stop_market(action=OrderAction.Buy, stop=2.5, size=1)
+
+    sim.eval_market(t0 + dt, low=99.1, high=99.2)
+    assert sim.tracker.position == None
+
+    sim.eval_market(t0 + 2 * dt, low=97.0, high=97.2)
+    assert order.peak == 97.0
+    assert sim.tracker.position == None
+
+    sim.eval_market(t0 + 3 * dt, low=99.3, high=99.4)
+    assert sim.tracker.position == None
+
+    sim.eval_market(t0 + 4 * dt, low=100.3, high=100.4)
+    p = sim.tracker.position
+    assert p.entry == 100.4
+    assert p.trade_type == TradeType.Long
     assert p.size == 1
