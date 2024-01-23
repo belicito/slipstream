@@ -4,6 +4,7 @@ import enum
 import pandas as pd
 from slipstream.data.timeutils import TimestampAlgos
 from typing import Generator, Optional, SupportsFloat, Tuple
+import pytz
 
 
 __all__ = [
@@ -12,7 +13,7 @@ __all__ = [
 ]
 
 
-_A_DAY = pd.Timedelta(1, "D")
+_1_DAY = pd.Timedelta(days=1)
 
 
 class _ExpiryCode(enum.Enum):
@@ -76,6 +77,10 @@ class FutureContract(abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
+    def trading_timezone(self) -> str:
+        pass
+
 
 class EminiContract(FutureContract):
 
@@ -117,24 +122,24 @@ class EminiContract(FutureContract):
     def trading_sessions(self, start: Optional[pd.Timestamp] = None) -> Generator[TradingSession, None, None]:
         if start is None:
             start = self.expiry_time - self._default_cycle_timedelta
-        ts = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        ts = start.replace(hour=1, minute=0, second=0, microsecond=0)
         while ts < self.expiry_time:
             if 1 <= ts.isoweekday() <= 4 or ts.isoweekday() == 7:
-                yield TradingSession(
-                    begin=ts.replace(hour=17, minute=0),
-                    end=min(ts.replace(hour=16, minute=0) + _A_DAY, self._expiry_time),
-                )
-            ts += _A_DAY
+                t0 = ts.replace(hour=17, minute=0)
+                t1 = (t0 + _1_DAY).replace(hour=16, minute=0)
+                s = TradingSession(begin=t0, end=min(t1, self._expiry_time))
+                yield s
+            ts = (ts + _1_DAY).replace(hour=1)
 
     def get_session_progress(self, ts: pd.Timestamp) -> float:
         """Given a timestamp, return a value between [0, 1] that indicates progress in the trading session"""
         sess_start = ts.replace(hour=17, minute=0, second=0, microsecond=0)
         if ts < sess_start:
-            sess_start = sess_start - _A_DAY
+            sess_start = sess_start - _1_DAY
 
         sess_end = ts.replace(hour=16, minute=0, second=0, microsecond=0)
         if ts > sess_end:
-            sess_end = sess_end + _A_DAY
+            sess_end = sess_end + _1_DAY
 
         retval = (ts - sess_start) / (sess_end - sess_start)
         # print("session progress:", ts, "->", retval, "Day:", sess_start, "-", sess_end)
@@ -145,9 +150,9 @@ class EminiContract(FutureContract):
 
         ts_isoweekday = ts.isoweekday()
         days_from_sun = 0 if ts_isoweekday == 7 else ts_isoweekday
-        week_start = ts.replace(hour=17, minute=0, second=0, microsecond=0) - days_from_sun * _A_DAY
+        week_start = ts.replace(hour=17, minute=0, second=0, microsecond=0) - days_from_sun * _1_DAY
         days_to_fri = 5 if ts_isoweekday == 7 else 5 - ts_isoweekday
-        week_end = ts.replace(hour=16, minute=0, second=0, microsecond=0) + days_to_fri * _A_DAY
+        week_end = ts.replace(hour=16, minute=0, second=0, microsecond=0) + days_to_fri * _1_DAY
         retval = (ts - week_start) / (week_end - week_start)
         # print("week progress:", ts, "->", retval, "Week:", week_start, "-", week_end)
         return retval
@@ -156,6 +161,9 @@ class EminiContract(FutureContract):
     @property
     def _default_cycle_timedelta(self) -> pd.Timedelta:
         return pd.Timedelta(95, "D")
+
+    def trading_timezone(self) -> str:
+        return "US/Central"
 
 
 def _infer_contract_year(year_str: str) -> int:
