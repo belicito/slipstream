@@ -94,6 +94,9 @@ class OrderAction(Enum):
                 self.BuyToCover: self.SellShort}[self]
 
 
+OrderExecutionCallback = Callable[['OrderExecution'], None]
+
+
 @dataclass
 class Order:
     action: OrderAction
@@ -103,7 +106,7 @@ class Order:
     stop: PriceLike = None
     peak: PriceLike = None
     time_sent: pd.Timestamp = None
-    on_execution: Optional[Callable[['OrderExecution'], None]] = None
+    on_execution: Optional[OrderExecutionCallback] = None
     activated: bool = True  # Used for Stop order types
 
     def is_buying(self) -> bool:

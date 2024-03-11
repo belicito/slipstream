@@ -68,6 +68,14 @@ class FutureContract(abc.ABC):
         last = self.previous.expiry_time
         this = self.expiry_time
         return (ts - last) / (this - last)
+    
+    def cycle_to_expiry(self, ts: pd.Timestamp) -> float:
+        """Number of cycle until expiration. Eg., from previous expiry to this expiry is 1.0"""
+
+        last = self.previous.expiry_time
+        this = self.expiry_time
+        assert ts <= this
+        return (this - ts) / (this - last)
 
     @abc.abstractmethod
     def trading_sessions(self, start: Optional[pd.Timestamp] = None) -> Generator[TradingSession, None, None]:
